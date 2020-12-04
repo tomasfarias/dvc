@@ -158,6 +158,9 @@ class SSHTree(BaseTree):
             else:
                 yield io.TextIOWrapper(fd, encoding=encoding)
 
+    def write(self, to_info):
+        return self.open(to_info, mode="wb")
+
     def exists(self, path_info, use_dvcignore=True):
         with self.ssh(path_info) as ssh:
             return ssh.exists(path_info.path)

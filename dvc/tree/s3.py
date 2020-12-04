@@ -342,6 +342,10 @@ class S3Tree(BaseTree):
                 size=obj.content_length,
             )
 
+    def write(self, to_info):
+        with self._get_s3() as s3:
+            return S3Writer(to_info.bucket, to_info.path, s3)
+
     def _upload(
         self, from_file, to_info, name=None, no_progress_bar=False, **_kwargs
     ):
@@ -363,3 +367,50 @@ class S3Tree(BaseTree):
                 desc=name,
             ) as pbar:
                 obj.download_file(to_file, Callback=pbar.update)
+
+
+class S3Writer:
+    """Adapt an S3 Multipart Upload to a writer interface"""
+
+    def __init__(self, bucket, key, s3):
+        self.bucket = bucket
+        self.key = key
+        self.s3 = s3
+        self.part_number = None
+        self.mpu = None
+        self.mpu_id = None
+        self.parts = None
+
+    def write(self, data):
+        part = self.s3.upload_part(
+            Bucket=self.bucket,
+            Key=self.key,
+            PartNumber=self.part_number,
+            Body=data,
+            UploadId=self.mpu_id,
+        )
+
+        self.parts.append(
+            {
+                "PartNumber": self.part_number,
+                "ETag": part["CopyPartResult"]["ETag"],
+            }
+        )
+        self.part_number += 1
+
+    def __enter__(self):
+        self.mpu = self.s3.create_multipart_upload(
+            Bucket=self.bucket, Key=self.key,
+        )
+        self.mpu_id = self.mpu["UploadId"]
+        self.parts = []
+        self.part_number = 1
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.s3.complete_multipart_upload(
+            Bucket=self.bucket,
+            Key=self.key,
+            UploadId=self.mpu_id,
+            MultipartUpload={"Parts": self.parts},
+        )

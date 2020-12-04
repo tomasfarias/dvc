@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
@@ -13,7 +14,7 @@ from dvc.ignore import DvcIgnore
 from dvc.path_info import URLInfo
 from dvc.progress import Tqdm
 from dvc.state import StateNoop
-from dvc.utils import tmp_fname
+from dvc.utils import file_md5, tmp_fname
 from dvc.utils.fs import makedirs, move
 from dvc.utils.http import open_url
 
@@ -182,6 +183,30 @@ class BaseTree:
         raise NotImplementedError
 
     # pylint: disable=unused-argument
+
+    def transfer(self, from_info, to_info, tree):
+        if self.exists(from_info):
+            self.copy(from_info, to_info)
+            return file_md5(from_info, self)
+
+        if not hasattr(self, "write"):
+            raise RemoteActionNotImplemented("write", self.scheme)
+
+        hash_md5 = hashlib.md5()
+
+        with Tqdm(desc="Transfering", disable=False, bytes=True):
+            # pylint:disable=no-member
+            with self.write(to_info) as writer:
+                with tree.open(from_info, "rb") as fobj:
+                    while True:
+                        data = fobj.read()
+                        if not data:
+                            break
+
+                        writer.write(data)
+                        hash_md5.update(data)
+
+        return (hash_md5.hexdigest(), hash_md5.digest())
 
     def isdir(self, path_info):
         """Optional: Overwrite only if the remote has a way to distinguish

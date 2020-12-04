@@ -336,6 +336,9 @@ class BaseOutput:
     def download(self, to):
         self.tree.download(self.path_info, to.path_info)
 
+    def open(self):
+        return self.tree.open(self.path_info)
+
     def checkout(
         self,
         force=False,

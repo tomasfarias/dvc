@@ -81,6 +81,7 @@ class Repo:
     from dvc.repo.reproduce import reproduce
     from dvc.repo.run import run
     from dvc.repo.status import status
+    from dvc.repo.transfer import transfer
     from dvc.repo.update import update
 
     ls = staticmethod(_ls)
